@@ -4,9 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from llm_engine import extract_preferences
 from yelp_fetch import get_restaurants
-#from context_manager import update_context, get_context
-#from allergen_filter import filter_allergens
-#from harmony_score import compute_harmony
+from context_manager import update_context, get_context
+from allergen_filter import filter_allergens
+from harmony_score import compute_harmony
 import json
 
 app = FastAPI(title="TasteBuddy LLM API")
