@@ -6,14 +6,17 @@ const messageField = document.getElementById("message");
 const sendBtn = document.getElementById("send");
 
 sendBtn.addEventListener("click", sendMessage);
-messageField.addEventListener("keypress", e => {
-  if (e.key === "Enter") sendMessage();
+messageField.addEventListener("keypress", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault(); // so it doesn't submit a form/reload
+    sendMessage();
+  }
 });
 
-function appendMessage(sender, text) {
+function appendMessage(senderClass, html) {
   const div = document.createElement("div");
-  div.className = sender;
-  div.innerHTML = text;
+  div.className = senderClass;
+  div.innerHTML = html;
   chatBox.appendChild(div);
   chatBox.scrollTop = chatBox.scrollHeight;
 }
@@ -23,8 +26,11 @@ async function sendMessage() {
   const message = messageField.value.trim();
   if (!message) return;
 
+  // show user message
   appendMessage("user", `<b>${user}:</b> ${message}`);
   messageField.value = "";
+
+  // placeholder bot message
   appendMessage("bot", "Thinking...");
 
   try {
@@ -33,27 +39,30 @@ async function sendMessage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: user, message }),
     });
+
+    if (!res.ok) {
+      // try to pull error detail from backend
+      let detail = res.statusText;
+      try {
+        const err = await res.json();
+        if (err.detail) detail = err.detail;
+      } catch (_) {}
+      updateLastBotMessage(`⚠️ Server error: ${detail}`);
+      return;
+    }
+
     const data = await res.json();
-
-    const prefs = JSON.stringify(data.preferences);
-    const harmony = data.harmony_score;
-    const recs = data.recommendations;
-
-    let reply = `<b>Preferences:</b> ${prefs}<br>`;
-    reply += `<b>Harmony score:</b> ${harmony}<br><b>Top picks:</b><br>`;
-
-    recs.forEach((r, i) => {
-      reply += `${i + 1}. <b>${r.name}</b> (${r.rating}★, ${r.price || "?"}) - ${r.location?.city || ""}<br>`;
-    });
-
-    updateLastBotMessage(reply);
+    // backend returns: { reply: "..." }
+    updateLastBotMessage(data.reply || "⚠️ No reply from server.");
   } catch (err) {
-    updateLastBotMessage("⚠️ Server error.");
+    updateLastBotMessage("⚠️ Network error: " + err.message);
   }
 }
 
 function updateLastBotMessage(text) {
   const bots = document.getElementsByClassName("bot");
   const last = bots[bots.length - 1];
-  last.innerHTML = text;
+  if (last) {
+    last.innerHTML = text;
+  }
 }

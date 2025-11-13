@@ -4,70 +4,82 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from llm_engine import extract_preferences
 from yelp_fetch import get_restaurants
-from context_manager import update_context, get_context
 from allergen_filter import filter_allergens
-from harmony_score import compute_harmony
-import json
 
-app = FastAPI(title="TasteBuddy LLM API")
+app = FastAPI(title="TasteBuddy Backend (Yelp + LLM)")
 
-# Allow local frontend access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # ok for local dev
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Request body schema
 class ChatInput(BaseModel):
     user_id: str
     message: str
 
-
 @app.get("/")
 def root():
-    return {"message": "TasteBuddy backend running."}
-
+    return {"message": "TasteBuddy backend running with Yelp."}
 
 @app.post("/chat")
 def chat(input: ChatInput):
     """
-    1. Add message to user's context
-    2. Extract preferences using OpenAI
-    3. Get restaurant data from Yelp
-    4. Filter allergens and compute harmony score
-    5. Return structured recommendations
+    Flow:
+    1. Use LLM to extract preferences from message.
+    2. Query Yelp with cuisine/location/price.
+    3. Filter restaurants by allergies.
+    4. Build a reply string summarizing recommendations.
     """
     try:
-        update_context(input.user_id, input.message)
+        prefs = extract_preferences(input.message)
 
-        prefs_json = extract_preferences(input.message)
-        prefs = json.loads(prefs_json)
+        cuisine_list = prefs.get("cuisine") or ["food"]
+        cuisine = cuisine_list[0]
+        price = prefs.get("price") or "1,2,3,4"
+        location = prefs.get("location") or "New York City"
+        allergies = prefs.get("allergies") or []
 
-        cuisine = prefs.get("cuisine", ["food"])[0]
-        price = prefs.get("price", "1,2,3,4")
-        location = prefs.get("location", "New York City")
-        allergies = prefs.get("allergies", [])
-
-        yelp_data = get_restaurants(term=cuisine, location=location, price=price)
+        # Call Yelp
+        yelp_data = get_restaurants(term=cuisine, location=location, price=price, limit=5)
         restaurants = yelp_data.get("businesses", [])
 
-        # Filter unsafe restaurants
+        # Filter by allergies
         safe_restaurants = filter_allergens(restaurants, allergies)
 
-        # Compute harmony score placeholder
-        harmony_score = compute_harmony(input.user_id, prefs)
+        # Build reply text
+        if not safe_restaurants:
+            reply = (
+                f"I tried looking for {cuisine} in {location}, "
+                f"but couldn't find good matches given the allergies {allergies}. "
+                "Maybe try changing cuisine, area, or allergy constraints?"
+            )
+        else:
+            
+            lines = []
+            for r in safe_restaurants[:5]:
+                name = r.get("title")
+                rating = r.get("rating", "?")
+                price_sym = r.get("price", "?")
+                category = r.get("type", "")
+                address = r.get("address", "")
 
-        response = {
-            "user": input.user_id,
+                lines.append(f"- {name} ({category}) – {price_sym}, {rating}★ – {address}")
+
+            reply = (
+                f"Based on what you said, I'm looking for {cuisine} around {location}.\n"
+                f"Here are some Yelp suggestions that avoid your allergies {allergies}:\n\n"
+                + "\n".join(lines)
+            )
+
+        return {
+            "reply": reply,
+            # Optional: include raw data if you ever want to use it in the frontend
             "preferences": prefs,
-            "harmony_score": harmony_score,
-            "recommendations": safe_restaurants[:5],
-            "context": get_context(input.user_id),
+            "restaurants": safe_restaurants[:5],
         }
-        return response
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
