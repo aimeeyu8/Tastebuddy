@@ -1,0 +1,51 @@
+[
+  {
+    "text": "I want cheap spicy ramen but I am dairy-free.",
+    "expected": {
+      "cuisine": ["ramen"],
+      "price": "1",
+      "allergies": ["dairy"],
+      "location": null
+    }
+  },
+
+  {
+    "text": "Let's get sushi in Manhattan. No milk please.",
+    "expected": {
+      "cuisine": ["sushi"],
+      "price": null,
+      "allergies": ["milk"],
+      "location": "manhattan"
+    }
+  },
+
+  {
+    "text": "I want Italian food but it must be gluten-free.",
+    "expected": {
+      "cuisine": ["italian"],
+      "price": null,
+      "allergies": ["gluten"],
+      "location": null
+    }
+  },
+
+  {
+    "text": "Find me something spicy and expensive near Brooklyn.",
+    "expected": {
+      "cuisine": null,
+      "price": "3,4",
+      "allergies": [],
+      "location": "brooklyn"
+    }
+  },
+
+  {
+    "text": "I want vegan Thai food.",
+    "expected": {
+      "cuisine": ["thai", "vegan"],
+      "price": null,
+      "allergies": [],
+      "location": null
+    }
+  }
+]
