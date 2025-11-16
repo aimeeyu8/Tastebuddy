@@ -1,4 +1,13 @@
 # backend/main.py
+from dotenv import load_dotenv
+import os
+from pathlib import Path
+
+env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
+print("OPENAI_API_KEY:", os.getenv("OPENAI_API_KEY"))
+
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel

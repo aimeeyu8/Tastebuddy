@@ -11,10 +11,7 @@ load_dotenv(dotenv_path=env_path)
 SERPAPI_KEY = os.getenv("SERPAPI_API_KEY")
 
 def get_restaurants(term, location="New York City", price="1,2,3,4", limit=5):
-    """
-    Uses SERPAPI Yelp engine instead of Yelp Fusion.
-    No Bearer token, no 128-character requirement.
-    """
+    # use serpapi to get yelp information
     if not SERPAPI_KEY:
         raise RuntimeError("SERPAPI_API_KEY is not set in .env")
 
@@ -31,7 +28,6 @@ def get_restaurants(term, location="New York City", price="1,2,3,4", limit=5):
     data = response.json()
     businesses = data.get("local_results", [])
 
-    # Normalize to look a bit like Yelp Fusion for the rest of your code
     normalized = []
     for b in businesses[:limit]:
         normalized.append({
