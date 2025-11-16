@@ -1,55 +1,63 @@
 import numpy as np
 
-# Stores everyone’s preferences across the group
 user_prefs = {}
 
-def prefs_to_vec(p):
-    vec = []
 
-    # cuisine to stable mapping
-    cuisine_map = {
-        "sushi": 0, "ramen": 1, "thai": 2, "italian": 3, "mexican": 4,
-        "spicy": 5, "cheap": 6, "american": 7
-    }
-    cuisine = p.get("cuisine", ["unknown"])[0].lower()
-    cuisine_idx = cuisine_map.get(cuisine, 99)
-    vec.append(cuisine_idx)
+def prefs_to_vec(p: dict) -> np.ndarray:
+    """
+    convert a structured preference dict into a numeric vector for similarity.
+    expected keys:
+      - "cuisine": string
+      - "price_range": int 1–4 or None
+      - "allergies": list
+    """
 
-    # SAFE price digit parsing
-    p_price = p.get("price", "")
-    if not p_price or p_price == "":
-        price_digit = 1
-    else:
-        try:
-            price_digit = int(p_price[0])
-        except:
-            price_digit = 1
+    raw_cuisine = p.get("cuisine") or ""
+    cuisine = str(raw_cuisine).lower().strip()
 
-    vec.append(price_digit)
+    cuisine_categories = ["sushi", "ramen", "thai", "italian", "mexican", "american"]
+    cuisine_vec = [1.0 if cuisine == cat else 0.0 for cat in cuisine_categories]
 
-    # allergy count
-    vec.append(len(p.get("allergies", [])))
+    raw_price = p.get("price_range")
+    try:
+        price_val = int(raw_price) if raw_price is not None else 0
+    except (ValueError, TypeError):
+        price_val = 0
 
+    price_val = max(0, min(price_val, 4))
+    price_norm = price_val / 4.0 
+
+    allergies = p.get("allergies") or []
+    allergy_count = float(len(allergies))
+
+    vec = [price_norm, allergy_count] + cuisine_vec
     return np.array(vec, dtype="float32")
 
-def compute_harmony(user_id, prefs):
+
+def compute_harmony(user_id: str, prefs: dict) -> float:
+
     user_prefs[user_id] = prefs
 
     if len(user_prefs) <= 1:
         return 1.0
 
-    # Build vectors EXCEPT current user
-    others = [prefs_to_vec(p) for uid, p in user_prefs.items() if uid != user_id]
+    other_vecs = [
+        prefs_to_vec(p)
+        for uid, p in user_prefs.items()
+        if uid != user_id
+    ]
 
-    if not others:
+    if not other_vecs:
         return 1.0
 
-    group_avg = np.mean(others, axis=0)
+    group_avg = np.mean(other_vecs, axis=0)
     user_vec = prefs_to_vec(prefs)
 
-    similarity = float(
-        np.dot(user_vec, group_avg) /
-        (np.linalg.norm(user_vec) * np.linalg.norm(group_avg))
-    )
+    user_norm = np.linalg.norm(user_vec)
+    group_norm = np.linalg.norm(group_avg)
 
+    if user_norm == 0 or group_norm == 0:
+        return 0.0
+
+    similarity = float(np.dot(user_vec, group_avg) / (user_norm * group_norm))
     return similarity
