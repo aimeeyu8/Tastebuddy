@@ -16,6 +16,10 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # prompt the system to tailor responses
 
+
+# prompt the system to tailor responses
+
+# System prompt for general TasteBuddy chat
 SYSTEM_PROMPT = """
 You are TasteBuddy, a friendly restaurant assistant for group chats in New York City.
 You:
@@ -60,4 +64,38 @@ def extract_preferences(text: str) -> dict:
         response_format={"type": "json_object"},
         temperature=0.2,
     )
-    return json.loads(resp.choices[0].message.content)
+
+    # Load the raw JSON from the LLM
+    prefs = json.loads(resp.choices[0].message.content)
+
+    # price fix
+    text_lower = text.lower()
+    price = None
+
+    cheap_words = ["cheap", "affordable", "inexpensive", "budget"]
+    moderate_words = ["not too expensive", "moderate", "mid-range", "okay price"]
+    expensive_words = ["expensive", "fancy", "pricey", "high-end"]
+
+    if any(w in text_lower for w in cheap_words):
+        price = "1"
+    elif any(w in text_lower for w in moderate_words):
+        price = "2"
+    elif any(w in text_lower for w in expensive_words):
+        price = "3,4"
+    elif "$$$$" in text_lower:
+        price = "4"
+    elif "$$$" in text_lower:
+        price = "3"
+    elif "$$" in text_lower:
+        price = "2"
+    elif "$" in text_lower:
+        price = "1"
+
+    # If the rule system found a price, override LLM
+    if price:
+        prefs["price"] = price
+    # If the LLM already returned a valid value, keep it
+    elif prefs.get("price") not in ["1", "2", "3", "4", "1,2", "3,4"]:
+        prefs["price"] = "1,2,3,4"
+
+    return prefs

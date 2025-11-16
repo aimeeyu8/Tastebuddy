@@ -1,2 +1,5 @@
-# ignore environment
+# Ignore environment and local data files
 .env
+*.pyc
+__pycache__/
+backend/data/conversation_memory.json

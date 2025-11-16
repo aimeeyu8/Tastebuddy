@@ -15,3 +15,8 @@ def update_context(user_id: str, message: str):
 
 def get_context(user_id: str):
     return memory.get(user_id, [])
+
+def reset_all_context():
+    global memory
+    memory = {}
+    json.dump(memory, open(FILE, "w"), indent=2)

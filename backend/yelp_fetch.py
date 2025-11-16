@@ -1,4 +1,3 @@
-# backend/yelp_fetch.py
 import os
 import requests
 from dotenv import load_dotenv
@@ -16,26 +15,26 @@ def get_restaurants(term, location="New York City", price="1,2,3,4", limit=5):
         raise RuntimeError("SERPAPI_API_KEY is not set in .env")
 
     params = {
-        "engine": "yelp",
-        "q": term,
-        "find_loc": location,
+        "engine": "google_local",
+        "q": f"{term} restaurant",
+        "location": location,
         "api_key": SERPAPI_KEY,
     }
 
     response = requests.get("https://serpapi.com/search", params=params)
-    response.raise_for_status()  # will raise HTTPError if SerpAPI returns 4xx/5xx
+    response.raise_for_status()
 
     data = response.json()
-    businesses = data.get("local_results", [])
+    local_results = data.get("local_results", [])
 
     normalized = []
-    for b in businesses[:limit]:
+    for b in local_results[:limit]:
         normalized.append({
             "title": b.get("title"),
             "rating": b.get("rating"),
             "price": b.get("price"),
-            "type": b.get("type"),               # category
-            "address": b.get("address"),         # single string
+            "type": b.get("type", ""),
+            "address": b.get("address"),
         })
 
     return {"businesses": normalized}

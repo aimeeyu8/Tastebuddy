@@ -70,4 +70,21 @@ body {
     padding: 10px 16px;
     cursor: pointer;
   }
-  
+  .reset-row {
+  text-align: center;
+  margin-top: 12px;
+}
+
+#reset-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+#reset-btn:hover {
+  background: #b82a38;
+}
