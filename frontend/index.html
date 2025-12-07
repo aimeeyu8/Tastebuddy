@@ -12,7 +12,7 @@
     <div id="chat-box"></div>
 
     <div class="user-row">
-      <input id="user-id" placeholder="Your name..." />
+      <input id="user-id" placeholder="Enter your name..." onchange="announceJoin()" />
       <input id="message" placeholder="Type your message..." />
       <button id="send">Send</button>
     </div>
@@ -21,7 +21,8 @@
     <div class="reset-row">
       <button id="reset-btn">Reset Memory</button>
     </div>
-
+    <!-- pdf button -->
+    <button id="pdf-btn" style="margin-top:10px;">Download PDF</button>
   </div>
 
   <script src="script.js"></script>

@@ -1,26 +1,15 @@
-// ⚠️ For local testing ONLY. Do NOT commit a real key to GitHub.
-const OPENAI_API_KEY = "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";
-
+// ⚠️ For local testing ONLY. Do NOT commit real keys.
 const chatWindow = document.getElementById("chat-window");
 const form = document.getElementById("chat-form");
 const input = document.getElementById("message-input");
 const userIdInput = document.getElementById("user-id");
 
-// We'll store the conversation so TasteBuddy has memory
-let messages = [
-  {
-    role: "system",
-    content: `
-You are TasteBuddy, a friendly restaurant assistant for group chats in New York City.
-
-- You read users' messages and infer cuisines, budget, allergies, and preferences.
-- You suggest 3–5 restaurant ideas in NYC tailored to the group.
-- If multiple people talk, refer to them by their names ("Kelly", "Cassidy", etc.) if mentioned.
-- Be concise and clear. Use bullet points when listing restaurants.
-- If the user has allergies, avoid those foods and mention that you're keeping them safe.
-`,
-  },
-];
+// ✅ Each browser gets a permanent unique user_id
+let SESSION_USER_ID = localStorage.getItem("tastebuddy_user");
+if (!SESSION_USER_ID) {
+  SESSION_USER_ID = crypto.randomUUID();
+  localStorage.setItem("tastebuddy_user", SESSION_USER_ID);
+}
 
 function addMessage(text, who = "agent") {
   const div = document.createElement("div");
@@ -30,62 +19,22 @@ function addMessage(text, who = "agent") {
   chatWindow.scrollTop = chatWindow.scrollHeight;
 }
 
-async function callOpenAI(userMessage, userName) {
-  // push user message into conversation history
-  const namePrefix = userName ? `${userName}: ` : "";
-  messages.push({
-    role: "user",
-    content: namePrefix + userMessage,
+async function sendMessage(text, userName) {
+  const res = await fetch("http://localhost:8000/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: SESSION_USER_ID,
+      user_name: userName || "Anonymous",
+      message: text
+    })
   });
 
-  try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: messages,
-        temperature: 0.5,
-      }),
-    });
+  const data = await res.json();
 
-    if (!response.ok) {
-        const text = await response.text();
-        console.error("OpenAI raw error response:", text);
-      
-        let errorMessage = response.statusText || "Unknown error";
-        try {
-          const parsed = JSON.parse(text);
-          if (parsed.error && parsed.error.message) {
-            errorMessage = parsed.error.message;
-          } else {
-            errorMessage = text;
-          }
-        } catch (e) {
-          // not JSON, just use raw text
-          errorMessage = text;
-        }
-      
-        addMessage("TasteBuddy error: " + errorMessage, "agent");
-        return;
-      }      
-
-    const data = await response.json();
-    const reply = data.choices[0].message.content;
-
-    // Add assistant reply to history
-    messages.push({
-      role: "assistant",
-      content: reply,
-    });
-
-    addMessage(reply, "agent");
-  } catch (e) {
-    console.error(e);
-    addMessage("Network error: " + e.message, "agent");
+  // MUCA can stay silent
+  if (data.reply) {
+    addMessage("TasteBuddy: " + data.reply, "agent");
   }
 }
 
@@ -94,12 +43,11 @@ form.addEventListener("submit", async (e) => {
   const text = input.value.trim();
   if (!text) return;
 
-  const userName = userIdInput.value.trim();
+  const userName = userIdInput.value.trim() || "Anonymous";
 
-  // Show user's message on screen
-  addMessage((userName || "You") + ": " + text, "user");
+  addMessage(userName + ": " + text, "user");
   input.value = "";
 
-  // Call OpenAI
-  await callOpenAI(text, userName);
+  await sendMessage(text, userName);
 });
+
