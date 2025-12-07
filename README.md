@@ -31,7 +31,7 @@ TasteBuddy is a Large Language Model (LLM)-powered restaurant assistant that aim
 
 - **Language Model:** OpenAI GPT  
 - **Backend:** Python  
-- **APIs:** Yelp API and possible other sources  
+- **APIs:** Yelp API 
 - **Visualization and Reports:** Python  
 - **Data Analysis:** Pandas, Matplotlib  
 - **Frontend:** HTML+CSS

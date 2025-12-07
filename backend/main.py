@@ -3,14 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 import numpy as np
+from .llm_engine import extract_preferences, generate_final_reply
+from .yelp_fetch import get_restaurants
+from .allergen_filter import filter_allergens
+from .harmony_score import compute_harmony, user_prefs, prefs_to_vec
+from .compromise import best_compromise_restaurant
+from .context_manager import update_context, get_context
+from .diet_filter import filter_dietary_rules
 
-from llm_engine import extract_preferences
-from yelp_fetch import get_restaurants
-from allergen_filter import filter_allergens
-from harmony_score import compute_harmony, user_prefs, prefs_to_vec
-from compromise import best_compromise_restaurant
-from context_manager import update_context, get_context
-from diet_filter import filter_dietary_rules
+
 
 # ================== app setup ==================
 app = FastAPI(title="TasteBuddy MUCA Backend")
@@ -64,7 +65,7 @@ def join_user(payload: dict):
 
     group_messages.append({
         "sender": "system",
-        "text": f"🟢 {name} joined the chat"
+        "text": f"{name} joined the chat"
     })
 
     return {"status": "ok"}
@@ -155,7 +156,7 @@ def chat(input: ChatInput):
 
             return {"reply": reply}
 
-        # -------- summary --------
+                # -------- summary --------
         if strategy == "Summary":
             group_state["last_bot_turn"] = sum(group_state["freq"].values())
             summary = get_context(input.user_id)
@@ -172,6 +173,7 @@ def chat(input: ChatInput):
             return {"reply": reply}
 
         # -------- direct / conflict --------
+        # 1) Extract preferences and update harmony
         prefs = extract_preferences(input.message)
         harmony = compute_harmony(input.user_id, prefs)
 
@@ -179,35 +181,46 @@ def chat(input: ChatInput):
         location = prefs.get("location") or "New York City"
         allergies = prefs.get("allergies") or []
 
-        yelp_data = get_restaurants(term=cuisine, location=location, limit=5)
+        # 2) Fetch Yelp restaurants
+        yelp_data = get_restaurants(term=cuisine, location=location, limit=8)
         restaurants = yelp_data.get("businesses", [])
 
+        # 3) Apply allergy + diet filters
         safe_restaurants = filter_allergens(restaurants, allergies)
+        safe_restaurants = filter_dietary_rules(safe_restaurants, prefs)
+
         ranked = safe_restaurants
 
-        conflict_section = ""
+        # 4) If there is group conflict, compute best compromise and pass as note
+        conflict_notes = {}
         if strategy == "Conflict" and ranked:
             vecs = [prefs_to_vec(p) for p in user_prefs.values()]
             group_avg = np.mean(vecs, axis=0)
             best_rest, best_sim = best_compromise_restaurant(ranked, group_avg)
 
-            conflict_section = (
-                "🟦 Group conflict detected.\n"
-                f"🟪 Best compromise: {best_rest.get('title')} (fit {best_sim:.2f})\n\n"
-            )
+            conflict_notes = {
+                "conflict": True,
+                "best_compromise_name": best_rest.get("title"),
+                "best_compromise_fit": round(float(best_sim), 2),
+            }
 
-        lines = [
-            f"- {r.get('title')} – {r.get('rating')}★ – {r.get('price','?')}"
-            for r in ranked[:5]
-        ]
+        # 5) Notes for the LLM-generated final reply
+        notes = {
+            "strategy": strategy,
+            "allergies": allergies,
+            "num_allergy_filtered": len(restaurants) - len(safe_restaurants),
+            **conflict_notes,
+        }
 
-        core_reply = conflict_section + "\n".join(lines)
+        # 6) Generate a friendly, human final reply using the LLM
+        full_reply = generate_final_reply(
+            user_query=input.message,
+            prefs=prefs,
+            restaurants=ranked,
+            notes=notes,
+        )
 
-        intro = np.random.choice(INTROS)
-        outro = np.random.choice(OUTROS)
-
-        full_reply = f"{intro}\n\n{core_reply}\n\n{outro}"
-
+        # 7) Save to group history and return
         group_messages.append({
             "sender": "TasteBuddy",
             "text": full_reply,
