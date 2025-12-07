@@ -12,7 +12,7 @@ from compromise import best_compromise_restaurant
 from context_manager import update_context, get_context
 from diet_filter import filter_dietary_rules
 
-# ================== APP SETUP ==================
+# ================== app setup ==================
 app = FastAPI(title="TasteBuddy MUCA Backend")
 
 app.add_middleware(
@@ -22,7 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ================== MUCA GROUP STATE ==================
+# ================== muca group state ==================
 group_state = {
     "participants": {},
     "freq": {},
@@ -30,10 +30,10 @@ group_state = {
     "last_bot_turn": 0
 }
 
-# ================== SHARED GROUP CHAT LOG ==================
+# ================== shared group chat log ==================
 group_messages = []
 
-# ================== BOT PERSONALITY ==================
+# ================== bot personality ==================
 INTROS = [
     "Here are some great picks that balance everyone’s tastes 👇",
     "Based on what everyone said, these fit best 🍽️",
@@ -47,7 +47,7 @@ OUTROS = [
     "Tell me if you want something more casual or fancy!"
 ]
 
-# ================== INPUT MODEL ==================
+# ================== input model ==================
 class ChatInput(BaseModel):
     user_id: str
     user_name: Optional[str] = None
@@ -57,7 +57,7 @@ class ChatInput(BaseModel):
 def root():
     return {"status": "MUCA backend running"}
 
-# ================== USER JOIN ==================
+# ================== user join ==================
 @app.post("/join")
 def join_user(payload: dict):
     name = payload.get("name", "Unknown")
@@ -69,7 +69,7 @@ def join_user(payload: dict):
 
     return {"status": "ok"}
 
-# ================== RESET MEMORY ==================
+# ================== reset memory ==================
 @app.post("/reset_memory")
 def reset_memory():
     global group_state, group_messages, user_prefs
@@ -84,12 +84,12 @@ def reset_memory():
 
     return {"status": "memory reset"}
 
-# ================== HISTORY ==================
+# ================== history ==================
 @app.get("/history")
 def get_history():
     return group_messages
 
-# ================== MUCA STRATEGY ==================
+# ================== muca strategy selector ==================
 def choose_strategy(state, explicit_ping):
     if explicit_ping:
         return "Direct"
@@ -110,10 +110,9 @@ def choose_strategy(state, explicit_ping):
 
     return "Silent"
 
-# ================== MAIN CHAT ENDPOINT ==================
+# ================== main chat endpoint ==================
 @app.post("/chat")
 def chat(input: ChatInput):
-
     try:
         # register user
         group_state["participants"][input.user_id] = input.user_name
@@ -135,11 +134,11 @@ def chat(input: ChatInput):
         explicit_ping = "@tastebuddy" in msg
         strategy = choose_strategy(group_state, explicit_ping)
 
-        # -------- SILENT --------
+        # -------- silent --------
         if strategy == "Silent":
             return {"reply": None}
 
-        # -------- ENCOURAGEMENT --------
+        # -------- encouragement --------
         if strategy == "Encouragement":
             avg_freq = sum(group_state["freq"].values()) / len(group_state["freq"])
             lurkers = [u for u in group_state["freq"] if group_state["freq"][u] < 0.4 * avg_freq]
@@ -156,7 +155,7 @@ def chat(input: ChatInput):
 
             return {"reply": reply}
 
-        # -------- SUMMARY --------
+        # -------- summary --------
         if strategy == "Summary":
             group_state["last_bot_turn"] = sum(group_state["freq"].values())
             summary = get_context(input.user_id)
@@ -172,7 +171,7 @@ def chat(input: ChatInput):
 
             return {"reply": reply}
 
-        # -------- DIRECT / CONFLICT --------
+        # -------- direct / conflict --------
         prefs = extract_preferences(input.message)
         harmony = compute_harmony(input.user_id, prefs)
 

@@ -3,13 +3,21 @@ import os
 import json
 from pathlib import Path
 from dotenv import load_dotenv
-from openai import OpenAI
-
-# Load .env from project root
 env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
+from openai import OpenAI
 
+# load .env for api keys
+
+
+# init 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+
+# prompt the system to tailor responses
+
+
+# prompt the system to tailor responses
 
 # System prompt for general TasteBuddy chat
 SYSTEM_PROMPT = """
@@ -21,18 +29,6 @@ You:
 - Be concise, friendly, and practical.
 """
 
-def chat_with_tastebuddy(message: str) -> str:
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": message},
-        ],
-        temperature=0.5,
-    )
-    return resp.choices[0].message.content
-
-# Structured preference extraction
 PREF_SYSTEM_PROMPT = """
 Extract structured restaurant preferences from text.
 Return JSON with keys:
@@ -44,8 +40,21 @@ Return JSON with keys:
 - dislikes: list of strings
 """
 
+def chat_with_tastebuddy(message: str) -> str:
+    # tastebuddy response from prompt
+    resp = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": message},
+        ],
+        temperature=0.5,
+    )
+    return resp.choices[0].message.content
+
+# preference extraction
 def extract_preferences(text: str) -> dict:
-    """Use OpenAI to parse the user's message into structured preferences."""
+    # parse user preference and use for recommendations
     resp = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[

@@ -10,9 +10,7 @@ load_dotenv(dotenv_path=env_path)
 SERPAPI_KEY = os.getenv("SERPAPI_API_KEY")
 
 def get_restaurants(term, location="New York City", price="1,2,3,4", limit=5):
-    """
-    Uses Google Local Results (SerpAPI) — fast & reliable for restaurant queries.
-    """
+    # use serpapi to get yelp information
     if not SERPAPI_KEY:
         raise RuntimeError("SERPAPI_API_KEY is not set in .env")
 
