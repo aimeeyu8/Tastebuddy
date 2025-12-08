@@ -18,6 +18,7 @@ TasteBuddy is a Large Language Model (LLM)-powered restaurant assistant that aim
 ## Methodology
 
 1. **Data Collection** 
+For every user request, TasteBuddy pulls live restaurant data directly from the Yelp Fusion API. Instead of storing a fixed dataset, the backend sends a real-time query based on the user's preferences on cuisine, location, and price. The API returns information  
 2. **User Input Collection** 
 3. **Preference Extraction** 
 4. **LLM Reasoning and Ranking** 
