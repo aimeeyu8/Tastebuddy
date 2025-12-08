@@ -1,7 +1,10 @@
-# backend/dietary_filter.py
-import re
+# backend/diet_filter.py
 
-def filter_dietary_rules(restaurants, diet_rules):
+import re
+from typing import List
+
+
+def filter_dietary_rules(restaurants: List[dict], diet_rules: List[str]) -> List[dict]:
     """
     Flexible filtering for many dietary needs.
 
@@ -9,14 +12,10 @@ def filter_dietary_rules(restaurants, diet_rules):
         ["no pork", "gluten-free", "vegan", "no spicy"]
 
     Restaurants are filtered based on:
-        - name
+        - name (title)
         - type/category text
-        - price description
-        - description keywords (if available)
-
-    Since SerpAPI Yelp data is limited (~ title/type), we match text patterns.
+        - address text
     """
-
     if not diet_rules:
         return restaurants
 
@@ -24,9 +23,11 @@ def filter_dietary_rules(restaurants, diet_rules):
 
     for r in restaurants:
         text = (
-            (r.get("title") or "") + " "
-            + (r.get("type") or "") + " "
-            + " ".join(r.get("address", "").split())
+            (r.get("title") or "")
+            + " "
+            + (r.get("type") or "")
+            + " "
+            + " ".join((r.get("address") or "").split())
         ).lower()
 
         banned = False
@@ -34,7 +35,7 @@ def filter_dietary_rules(restaurants, diet_rules):
         for rule in diet_rules:
             rule = rule.lower().strip()
 
-            # exclusion rules
+            # Exclusion rules
             if rule in ["no pork", "pork-free", "avoid pork"]:
                 if re.search(r"pork|tonkotsu", text):
                     banned = True
@@ -71,7 +72,8 @@ def filter_dietary_rules(restaurants, diet_rules):
                 if "spicy" in text:
                     banned = True
 
-            #must include/requirements
+            # Inclusion-type rules
+
             if rule in ["vegan"]:
                 if not re.search(r"vegan|plant|vegetable", text):
                     banned = True
@@ -100,7 +102,6 @@ def filter_dietary_rules(restaurants, diet_rules):
                 if re.search(r"bread|rice|noodle|pasta", text):
                     banned = True
 
-        # If the restaurant passed every rule → keep it
         if not banned:
             safe.append(r)
 
