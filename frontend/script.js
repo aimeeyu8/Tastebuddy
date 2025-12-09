@@ -6,7 +6,7 @@ const messageField = document.getElementById("message");
 const sendBtn = document.getElementById("send");
 const resetBtn = document.getElementById("reset-btn");
 
-// user color assignment
+// color assignments for users
 function getUserColor(name) {
   let key = `color_${name}`;
   let stored = localStorage.getItem(key);
@@ -21,14 +21,14 @@ function getUserColor(name) {
   return color;
 }
 
-// unique user per browser session
+// user id based session id
 let SESSION_USER_ID = localStorage.getItem("tastebuddy_user");
 if (!SESSION_USER_ID) {
   SESSION_USER_ID = crypto.randomUUID();
   localStorage.setItem("tastebuddy_user", SESSION_USER_ID);
 }
 
-// send real join event to backend
+// send join event
 async function sendJoinEvent(name) {
   try {
     await fetch("http://127.0.0.1:8000/join", {
@@ -41,16 +41,14 @@ async function sendJoinEvent(name) {
   }
 }
 
-// trigger join when name is entered
 userField.addEventListener("change", () => {
   const name = userField.value.trim();
-  if (name) {
-    sendJoinEvent(name);
-  }
+  if (name) sendJoinEvent(name);
 });
 
-// events
+// buttons
 sendBtn.addEventListener("click", sendMessage);
+
 messageField.addEventListener("keypress", (e) => {
   if (e.key === "Enter") {
     e.preventDefault();
@@ -58,9 +56,8 @@ messageField.addEventListener("keypress", (e) => {
   }
 });
 
-// reset button
 resetBtn.addEventListener("click", async () => {
-  if (!confirm("are you sure you want to clear all user memory?")) return;
+  if (!confirm("Are you sure you want to clear all memory?")) return;
 
   try {
     const res = await fetch("http://127.0.0.1:8000/reset_memory", {
@@ -68,23 +65,32 @@ resetBtn.addEventListener("click", async () => {
     });
 
     if (!res.ok) {
-      alert("server error while resetting memory.");
+      alert("Server error while resetting memory.");
       return;
     }
 
     chatBox.innerHTML = "";
     lastRenderedIndex = 0;
-    appendMessage("bot", "🧹 memory has been reset!");
+    appendMessage("bot", "🧹 Memory has been reset!");
 
   } catch (err) {
-    alert("network error: " + err.message);
+    alert("Network error: " + err.message);
   }
 });
 
-// add a message to the chat area
-function appendMessage(senderClass, html) {
-  const div = document.createElement("div");
+//message append
+function appendMessage(senderClass, html, msgId = null) {
+  // skip if already rendered
+  if (msgId && document.querySelector(`[data-msgid="${msgId}"]`)) {
+    return;
+  }
 
+  const div = document.createElement("div");
+  div.className = senderClass;
+
+  if (msgId !== null) div.dataset.msgid = msgId;
+
+  // diff color for diff user messages
   if (senderClass === "user") {
     const nameMatch = html.match(/<b>(.*?):<\/b>/);
     if (nameMatch) {
@@ -94,20 +100,21 @@ function appendMessage(senderClass, html) {
     }
   }
 
-  div.className = senderClass;
   div.innerHTML = html;
   chatBox.appendChild(div);
   chatBox.scrollTop = chatBox.scrollHeight;
 }
-
 // main send function
 async function sendMessage() {
   const userName = userField.value.trim() || "Guest";
   const message = messageField.value.trim();
-
   if (!message) return;
 
   messageField.value = "";
+
+  // Do not append the user's message locally here — the server pushes
+  // the user message into the shared history and `fetchGroupHistory`
+  // will render it. This avoids showing the same message twice.
 
   try {
     const res = await fetch(API_URL, {
@@ -120,30 +127,22 @@ async function sendMessage() {
       }),
     });
 
-    if (!res.ok) {
-      let detail = res.statusText;
-      try {
-        const err = await res.json();
-        if (err.detail) detail = err.detail;
-      } catch (_) {}
+    const data = await res.json();
 
-      appendMessage("bot", `⚠️ server error: ${detail}`);
+    if (!res.ok) {
+      appendMessage("bot", `⚠️ Server error: ${data.detail}`);
       return;
     }
 
-    const data = await res.json();
-
-    if (!data.reply) return;
-
-    appendMessage("bot", "");
-    updateLastBotMessage(data);
+    // Immediately fetch history to render the user's message and bot reply
+    // without waiting for the next polling interval.
+    fetchGroupHistory();
 
   } catch (err) {
-    appendMessage("bot", "⚠️ network error: " + err.message);
+    appendMessage("bot", "⚠️ Network error: " + err.message);
   }
 }
-
-// update bot ui
+// update bot messaage content
 function updateLastBotMessage(data) {
   const bots = document.getElementsByClassName("bot");
   const last = bots[bots.length - 1];
@@ -157,9 +156,9 @@ function updateLastBotMessage(data) {
     if (harmony < 0.66) color = "#ff9800";
     if (harmony < 0.33) color = "#f44336";
 
-    let mood = "😊";
-    if (harmony < 0.33) mood = "😬";
-    else if (harmony < 0.66) mood = "🤔";
+    let mood = harmony < 0.33 ? "😬"
+              : harmony < 0.66 ? "🤔"
+              : "😊";
 
     harmonyBadge = `
       <div style="background:${color}; color:white; padding:4px 10px;
@@ -169,52 +168,13 @@ function updateLastBotMessage(data) {
     `;
   }
 
-  let html = harmonyBadge + `
-    <p style="white-space: pre-line;">${data.reply}</p>
-  `;
-
-  if (data.restaurants && data.restaurants.length > 0) {
-    html += `<br><b>Top Recommendations:</b><br>`;
-    data.restaurants.forEach((r) => {
-      html += `
-        <div style="margin-left:12px; margin-bottom:10px;">
-          • <b>${r.title}</b><br>
-          Rating: ${r.rating ?? "?"} ★<br>
-          Price: ${r.price ?? "?"}<br>
-          Type: ${r.type ?? ""}<br>
-          Address: ${r.address ?? ""}<br>
-        </div>`;
-    });
-
-    window.lastRestaurants = data.restaurants;
-  }
+  let html = harmonyBadge +
+    `<p style="white-space: pre-line;">${data.reply}</p>`;
 
   last.innerHTML = html;
 }
 
-// pdf export
-document.getElementById("pdf-btn")?.addEventListener("click", async () => {
-  if (!window.lastRestaurants || window.lastRestaurants.length === 0) {
-    alert("ask tastebuddy for recommendations first!");
-    return;
-  }
-
-  const res = await fetch("http://127.0.0.1:8000/export_pdf", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(window.lastRestaurants),
-  });
-
-  const blob = await res.blob();
-  const url = window.URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "TasteBuddy_Recommendations.pdf";
-  a.click();
-});
-
-// shared group chat polling
+// group history polling
 let lastRenderedIndex = 0;
 
 async function fetchGroupHistory() {
@@ -225,16 +185,21 @@ async function fetchGroupHistory() {
     const newMessages = data.slice(lastRenderedIndex);
 
     newMessages.forEach(msg => {
+      if (msg.id && document.querySelector(`[data-msgid="${msg.id}"]`)) {
+        return; // skip duplicates
+      }
+
       if (msg.sender === "TasteBuddy") {
-        appendMessage("bot", "");
+        appendMessage("bot", "", msg.id);
         updateLastBotMessage({
           reply: msg.text,
           harmony_score: msg.harmony ?? null,
           restaurants: msg.restaurants ?? []
         });
+      } else if (msg.sender === "system") {
+        appendMessage("system", `<i>${msg.text}</i>`, msg.id);
       } else {
-        const cls = msg.sender === "system" ? "bot" : "user";
-        appendMessage(cls, `<b>${msg.sender}:</b> ${msg.text}`);
+        appendMessage("user", `<b>${msg.sender}:</b> ${msg.text}`, msg.id);
       }
     });
 
@@ -245,5 +210,4 @@ async function fetchGroupHistory() {
   }
 }
 
-// poll every 2 seconds
 setInterval(fetchGroupHistory, 2000);

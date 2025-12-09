@@ -1,21 +1,33 @@
+# backend/main.py
+# main.py contains the fastapi app and the chat logic including endpoints
+# takes care of the flow from receiving user message -> extracting preferences -> fetching from yelp api -> filtering -> ranking -> generating final reply
+from dotenv import load_dotenv
+import os
+
+dotenv_path = os.path.join(os.path.dirname(__file__), ".env")
+load_dotenv(dotenv_path)
+
+
+from typing import Optional, List
+import traceback
+import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional
-import numpy as np
+
 from .llm_engine import extract_preferences, generate_final_reply
-from .yelp_fetch import get_restaurants
+from .yelp_fetch import yelp_search
 from .allergen_filter import filter_allergens
+from .diet_filter import filter_dietary_rules
+from .ranking import rank_restaurants
 from .harmony_score import compute_harmony, user_prefs, prefs_to_vec
 from .compromise import best_compromise_restaurant
-from .context_manager import update_context, get_context
-from .diet_filter import filter_dietary_rules
+from .context_manager import update_context, reset_all_context
 
-
-
-# ================== app setup ==================
+# Fast API app setup 
 app = FastAPI(title="TasteBuddy MUCA Backend")
-
+# allow cors for all origins so frontend can call
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,196 +35,231 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ================== muca group state ==================
+
+# multi user chat state, tracks name, how many messages sent, length of messages, and last bot message
+
 group_state = {
     "participants": {},
     "freq": {},
     "length": {},
-    "last_bot_turn": 0
+    "last_bot_turn": 0,
 }
+# message history, frontend polls this to display chat
+group_messages: List[dict] = []
 
-# ================== shared group chat log ==================
-group_messages = []
 
-# ================== bot personality ==================
-INTROS = [
-    "Here are some great picks that balance everyone’s tastes 👇",
-    "Based on what everyone said, these fit best 🍽️",
-    "Alright team, these spots are your best match:",
-    "TasteBuddy here! I found options that work for the group 👇"
-]
-
-OUTROS = [
-    "Want me to narrow this down to one top choice?",
-    "I can optimize this by budget or walking distance too!",
-    "Tell me if you want something more casual or fancy!"
-]
-
-# ================== input model ==================
+# Input model for chat endpoint
 class ChatInput(BaseModel):
     user_id: str
     user_name: Optional[str] = None
     message: str
 
+# push message to history with unique ID
+def push_message(sender, text, harmony=None, restaurants=None):
+    msg = {
+        "id": len(group_messages),
+        "sender": sender,
+        "text": text,
+        "harmony": harmony,
+        "restaurants": restaurants or [],
+    }
+    group_messages.append(msg)
+    return msg
+
+
 @app.get("/")
 def root():
-    return {"status": "MUCA backend running"}
+    return {"status": "TasteBuddy MUCA backend running"}
 
-# ================== user join ==================
+# app.post to join the chat, 
 @app.post("/join")
 def join_user(payload: dict):
     name = payload.get("name", "Unknown")
-
-    group_messages.append({
-        "sender": "system",
-        "text": f"{name} joined the chat"
-    })
-
+    push_message("system", f"{name} joined the chat")
     return {"status": "ok"}
 
-# ================== reset memory ==================
+# app.post to reset memory, resets chat history, group state, user preferences, and context manager
 @app.post("/reset_memory")
 def reset_memory():
     global group_state, group_messages, user_prefs
 
-    group_state["participants"].clear()
-    group_state["freq"].clear()
-    group_state["length"].clear()
-    group_state["last_bot_turn"] = 0
-
+    group_state = {"participants": {}, "freq": {}, "length": {}, "last_bot_turn": 0}
     group_messages.clear()
     user_prefs.clear()
-
+    reset_all_context()
     return {"status": "memory reset"}
 
-# ================== history ==================
+# retrieve chat history
 @app.get("/history")
 def get_history():
     return group_messages
 
-# ================== muca strategy selector ==================
-def choose_strategy(state, explicit_ping):
+
+# strategy logic
+def choose_strategy(state, explicit_ping: bool) -> str:
+    from .harmony_score import compute_harmony_score
+
+    # if user directly mentions tastebuddy, they will get a response
     if explicit_ping:
         return "Direct"
 
+    # Conflict detection
     if len(user_prefs) > 1:
-        harmony_vals = [compute_harmony(uid, p) for uid, p in user_prefs.items()]
-        if min(harmony_vals) < 0.4:
+        scores = [
+            compute_harmony_score(uid, prefs, dict(user_prefs))
+            for uid, prefs in user_prefs.items()
+        ]
+        if scores and min(scores) < 0.4:
             return "Conflict"
 
-    avg_freq = sum(state["freq"].values()) / max(1, len(state["freq"]))
-    lurkers = [u for u in state["freq"] if state["freq"][u] < 0.4 * avg_freq]
+    # Encouragement if some users are silent/quiet
+    if state["freq"]:
+        avg_freq = sum(state["freq"].values()) / len(state["freq"])
+        if any(state["freq"][u] < 0.4 * avg_freq for u in state["freq"]):
+            return "Encouragement"
 
-    if lurkers:
-        return "Encouragement"
-
-    if sum(state["freq"].values()) - state["last_bot_turn"] > 6:
+    # Summary if there have been more than 6 messages since last bot message
+    total_msgs = sum(state["freq"].values())
+    if total_msgs - state["last_bot_turn"] > 6:
         return "Summary"
 
-    return "Silent"
+    return "Direct"
 
-# ================== main chat endpoint ==================
+# main chat endpoint
 @app.post("/chat")
 def chat(input: ChatInput):
+    # backend logs user identity, message count, totaly characters typed
     try:
-        # register user
-        group_state["participants"][input.user_id] = input.user_name
-        group_state["freq"].setdefault(input.user_id, 0)
-        group_state["length"].setdefault(input.user_id, 0)
+        uid = input.user_id
+        name = input.user_name or "Guest"
 
-        group_state["freq"][input.user_id] += 1
-        group_state["length"][input.user_id] += len(input.message)
+        # track user in group state
+        group_state["participants"][uid] = name
+        group_state["freq"].setdefault(uid, 0)
+        group_state["length"].setdefault(uid, 0)
+        group_state["freq"][uid] += 1
+        group_state["length"][uid] += len(input.message)
 
-        update_context(input.user_id, input.message)
+        update_context(uid, input.message)
 
-        # save user message
-        group_messages.append({
-            "sender": input.user_name or "Unknown",
-            "text": input.message
-        })
-
-        msg = input.message.lower()
-        explicit_ping = "@tastebuddy" in msg
+        # Record user message + adds to shared chat history
+        push_message(name, input.message)
+        #model will only response when tagged 
+        explicit_ping = "@tastebuddy" in input.message.lower()
+        if not explicit_ping:
+            return {
+                "reply": "",
+                "harmony_score": None,
+                "restaurants": [],
+            }
         strategy = choose_strategy(group_state, explicit_ping)
-
-        # -------- silent --------
-        if strategy == "Silent":
-            return {"reply": None}
-
-        # -------- encouragement --------
+        # choose strategy - user will pint bot + give key word for what they want the bot to do
         if strategy == "Encouragement":
             avg_freq = sum(group_state["freq"].values()) / len(group_state["freq"])
-            lurkers = [u for u in group_state["freq"] if group_state["freq"][u] < 0.4 * avg_freq]
+            lurkers = [
+                u for u in group_state["freq"]
+                if group_state["freq"][u] < 0.4 * avg_freq
+            ]
             names = [group_state["participants"].get(u, "someone") for u in lurkers[:2]]
-
             reply = f"Hey {', '.join(names)}, we’d love your input too!"
 
-            group_messages.append({
-                "sender": "TasteBuddy",
-                "text": reply,
-                "harmony": None,
-                "restaurants": []
-            })
-
+            push_message("TasteBuddy", reply)
             return {"reply": reply}
 
-                # -------- summary --------
+
+        # Summary Strategy, summarizes last 10 messages
         if strategy == "Summary":
             group_state["last_bot_turn"] = sum(group_state["freq"].values())
-            summary = get_context(input.user_id)
+            last_msgs = group_messages[-10:]
+            lines = [f"{m['sender']}: {m['text']}" for m in last_msgs]
+            reply = "Here’s a quick summary so far:\n" + "\n".join(lines)
 
-            reply = "Here’s a quick group summary so far:\n" + summary
-
-            group_messages.append({
-                "sender": "TasteBuddy",
-                "text": reply,
-                "harmony": None,
-                "restaurants": []
-            })
-
+            push_message("TasteBuddy", reply)
             return {"reply": reply}
 
-        # -------- direct / conflict --------
-        # 1) Extract preferences and update harmony
+
+        # Direct / Conflict Strategy
+        # extract user prefeerences
         prefs = extract_preferences(input.message)
-        harmony = compute_harmony(input.user_id, prefs)
+        # compute user harmony which should measure how different a user's preferences are from their group
+        harmony = compute_harmony(uid, prefs)
 
         cuisine = (prefs.get("cuisine") or ["food"])[0]
         location = prefs.get("location") or "New York City"
         allergies = prefs.get("allergies") or []
+        diet_rules = prefs.get("diet") or []
 
-        # 2) Fetch Yelp restaurants
-        yelp_data = get_restaurants(term=cuisine, location=location, limit=8)
-        restaurants = yelp_data.get("businesses", [])
 
-        # 3) Apply allergy + diet filters
-        safe_restaurants = filter_allergens(restaurants, allergies)
-        safe_restaurants = filter_dietary_rules(safe_restaurants, prefs)
+        # Yelp Search, this should return normalized restaurants
+        restaurants = yelp_search(term=cuisine, location=location, limit=12)
 
-        ranked = safe_restaurants
+        # If Yelp returns nothing → fallback message immediately
+        if not restaurants:
+            fallback = (
+                "I couldn’t find any places for that cuisine in this area.\n"
+                "Want me to try a nearby neighborhood or expand the cuisine search?"
+            )
+            push_message("TasteBuddy", fallback, harmony, [])
+            return {"reply": fallback, "harmony_score": harmony, "restaurants": []}
 
-        # 4) If there is group conflict, compute best compromise and pass as note
+        # Allergen Filtering, if more thn 30% of menu items contain allergen, restaurant is filtered out
+        safe_restaurants, allergen_debug = filter_allergens(
+            restaurants,
+            allergies,
+            threshold=0.3,
+        )
+
+        safe_restaurants = filter_dietary_rules(safe_restaurants, diet_rules)
+
+        # fallback: if everything filtered, relax allergen filtering
+        relaxed = False
+        if not safe_restaurants:
+            relaxed = True
+            restaurants_for_ranking = restaurants
+        else:
+            restaurants_for_ranking = safe_restaurants
+
+        # Ranking, scores each restaurant by rating
+        ranked = rank_restaurants(
+            restaurants_for_ranking,
+            prefs,
+            allergen_debug=allergen_debug
+        )
+
+        # FINAL fallback: ranked empty
+        if not ranked:
+            fallback = (
+                "I couldn’t find any places that fully match all filters.\n"
+                "If you’d like, I can relax the allergy, budget, or cuisine rules and try again!"
+            )
+            push_message("TasteBuddy", fallback, harmony, [])
+            return {"reply": fallback, "harmony_score": harmony, "restaurants": []}
+
+        # Conflict Resolution
         conflict_notes = {}
-        if strategy == "Conflict" and ranked:
+        # if the strategy is conflict, then we compute the group-average preference vector. We then find a restaurant that is best for everyone
+        if strategy == "Conflict":
             vecs = [prefs_to_vec(p) for p in user_prefs.values()]
             group_avg = np.mean(vecs, axis=0)
             best_rest, best_sim = best_compromise_restaurant(ranked, group_avg)
 
-            conflict_notes = {
-                "conflict": True,
-                "best_compromise_name": best_rest.get("title"),
-                "best_compromise_fit": round(float(best_sim), 2),
-            }
+            if best_rest:
+                conflict_notes = {
+                    "conflict": True,
+                    "best_compromise_name": best_rest.get("title"),
+                    "best_compromise_fit": round(float(best_sim), 2),
+                }
 
-        # 5) Notes for the LLM-generated final reply
         notes = {
             "strategy": strategy,
             "allergies": allergies,
-            "num_allergy_filtered": len(restaurants) - len(safe_restaurants),
+            "diet_rules": diet_rules,
+            "relaxed": relaxed,
+            "allergen_debug": allergen_debug,
             **conflict_notes,
         }
 
-        # 6) Generate a friendly, human final reply using the LLM
+        # Generate Final Reply
         full_reply = generate_final_reply(
             user_query=input.message,
             prefs=prefs,
@@ -220,19 +267,18 @@ def chat(input: ChatInput):
             notes=notes,
         )
 
-        # 7) Save to group history and return
-        group_messages.append({
-            "sender": "TasteBuddy",
-            "text": full_reply,
-            "harmony": harmony,
-            "restaurants": ranked[:5]
-        })
+        # this pushes the bot message into the history
+        push_message("TasteBuddy", full_reply, harmony, ranked[:5])
 
+        # front end uses reurn response to update output
         return {
             "reply": full_reply,
             "harmony_score": harmony,
-            "restaurants": ranked[:5]
+            "restaurants": ranked[:5],
         }
 
     except Exception as e:
+        print("\n=== ERROR IN /chat ENDPOINT ===")
+        traceback.print_exc()
+        print("=== End ERROR ===\n")
         raise HTTPException(status_code=500, detail=str(e))
