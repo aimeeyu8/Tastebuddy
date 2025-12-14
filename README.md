@@ -111,9 +111,9 @@ cmd /c run_tastebuddy.bat
 
 This will:
 
-Start backend on http://127.0.0.1:8000
+-Start backend on http://127.0.0.1:8000
 
-Start frontend on http://localhost:5500
+-Start frontend on http://localhost:5500
 
 Open your browser automatically
 
@@ -154,8 +154,7 @@ cd Tastebuddy/frontend
 python -m http.server 5500
 
 
-Visit:
-👉 http://localhost:5500
+Visit:http://localhost:5500
 
 Usage Examples
 Start a conversation:
@@ -204,9 +203,7 @@ Make sure you started:
 python -m http.server 5500
 
 
-Then visit:
-
-http://localhost:5500
+Then visit:http://localhost:5500
 
 4. Allergen filter takes too long
 
