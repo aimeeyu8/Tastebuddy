@@ -52,6 +52,178 @@ Together, these two layers make sure the final recommendations feel inclusive, s
 
 Cassidy Francis, Kelly Lee, Aimee Yu
 
+## Step-by-Step Tutorial: Running TasteBuddy
+
+Below are full instructions for environment setup, API keys, backend frontend launch, and troubleshooting.
+1. Required API Keys
+
+TasteBuddy requires two API keys:
+
+1. OpenAI API Key
+
+Create one at: https://platform.openai.com
+
+Add it to your .env file inside backend/:
+
+OPENAI_API_KEY=your_key_here
+
+2. Yelp Fusion API Key
+
+Create one at: https://www.yelp.com/developers/v3/manage_app
+
+Add it to backend/.env:
+
+YELP_API_KEY=your_key_here
+
+2. Installation Instructions
+Windows Setup
+cd Tastebuddy
+cd backend
+
+python -m venv venv
+venv\Scripts\activate
+
+pip install -r requirements.txt
+
+macOS / Linux Setup
+cd Tastebuddy/backend
+
+python3 -m venv venv
+source venv/bin/activate
+
+pip install -r requirements.txt
+
+3. Running TasteBuddy (Backend + Frontend)
+
+You now have two ways to run the system:
+
+Option A — One-Click Launcher (Recommended)
+Windows Users
+
+Double-click:
+
+run_tastebuddy.bat
+
+(Or run inside VS Code terminal:)
+
+cmd /c run_tastebuddy.bat
+
+
+This will:
+
+Start backend on http://127.0.0.1:8000
+
+Start frontend on http://localhost:5500
+
+Open your browser automatically
+
+macOS / Linux Users
+
+Use the shell version:
+
+Install once:
+chmod +x run_tastebuddy.sh
+
+Run TasteBuddy:
+./run_tastebuddy.sh
+
+
+This does the same: Starts backend, Starts frontend & Opens the browser
+
+Option B — Run Manually
+
+If you prefer to run backend + frontend yourself:
+
+Start the Backend
+Windows
+cd Tastebuddy/backend
+venv\Scripts\activate
+uvicorn main:app --reload --port 8000
+
+macOS/Linux
+cd Tastebuddy/backend
+source venv/bin/activate
+uvicorn main:app --reload --port 8000
+
+Start the Frontend
+
+Open a new terminal:
+
+Windows / Mac / Linux:
+cd Tastebuddy/frontend
+python -m http.server 5500
+
+
+Visit:
+👉 http://localhost:5500
+
+Usage Examples
+Start a conversation:
+
+Type:
+
+Hi TasteBuddy!
+
+
+Model responds when tagged:
+
+@tastebuddy Find sushi in Midtown for someone gluten-free
+
+
+Troubleshooting Guide
+1. "uvicorn not recognized"
+
+Your virtual environment is not active.
+
+Activate it again:
+
+Windows
+
+venv\Scripts\activate
+
+
+macOS/Linux
+
+source venv/bin/activate
+
+2. "ImportError: attempted relative import"
+
+You ran this command:
+
+uvicorn main:app
+
+
+Instead, always run from repo root:
+
+uvicorn backend.main:app --reload --port 8000
+
+3. Browser won’t load frontend
+
+Make sure you started:
+
+python -m http.server 5500
+
+
+Then visit:
+
+http://localhost:5500
+
+4. Allergen filter takes too long
+
+This happens when SERPAPI’s Yelp Places API is slow or rate-limited.
+Future improvements include:
+
+Caching results
+
+Switching to async requests
+
+Reducing menu analysis depth
+
+TasteBuddy Is Ready!
+
+Your environment is set up, API keys are installed, and you can now launch the full system with one click on Windows or macOS/Linux.
+
+
 ## References
 
 - Brahimi, S. (2024). *AI-Powered Dining: Text Information Extraction and Machine Learning for Personalized Menu Recommendations and Food Allergy Management.* International Journal of Information Technology, 17(4), 2107–2115.  
