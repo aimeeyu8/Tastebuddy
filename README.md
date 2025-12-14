@@ -1,6 +1,6 @@
 # TasteBuddy: LLM Restaurant Assistant
 
-TasteBuddy is a Large Language Model (LLM)-powered restaurant assistant that aims to solve the issue of picking restaurants in group settings. Unlike other solutions that use filtering, TasteBuddy hopes to understand multiple users’ chats and extracts each person's preferences, analyzes group alignment, filters out unsafe options, and recommends resturants using Yeld data and an LLM reasoning layer. TasteBuddy is built specifically for New York City dining, with safety!
+TasteBuddy is a Large Language Model (LLM)-powered restaurant assistant that aims to solve the issue of picking restaurants in group settings. Unlike other solutions that use filtering, TasteBuddy hopes to understand multiple users’ chats and extracts each person's preferences, analyzes group alignment, filters out unsafe options, and recommends resturants using Yelp data and an LLM reasoning layer. TasteBuddy is built specifically for New York City dining, with safety!
 ---
 
 ## Features
@@ -55,11 +55,11 @@ Cassidy Francis, Kelly Lee, Aimee Yu
 ## Step-by-Step Tutorial: Running TasteBuddy
 
 Below are full instructions for environment setup, API keys, backend frontend launch, and troubleshooting.
-1. Required API Keys
+### 1. Required API Keys
 
 TasteBuddy requires two API keys:
 
-1. OpenAI API Key
+#### 1. OpenAI API Key
 
 Create one at: https://platform.openai.com
 
@@ -67,7 +67,7 @@ Add it to your .env file inside backend/:
 
 OPENAI_API_KEY=your_key_here
 
-2. Yelp Fusion API Key
+#### 2. Yelp Fusion API Key
 
 Create one at: https://www.yelp.com/developers/v3/manage_app
 
@@ -75,7 +75,7 @@ Add it to backend/.env:
 
 YELP_API_KEY=your_key_here
 
-2. Installation Instructions
+### 2. Installation Instructions
 Windows Setup
 cd Tastebuddy
 cd backend
@@ -93,11 +93,11 @@ source venv/bin/activate
 
 pip install -r requirements.txt
 
-3. Running TasteBuddy (Backend + Frontend)
+### 3. Running TasteBuddy (Backend + Frontend)
 
 You now have two ways to run the system:
 
-Option A — One-Click Launcher (Recommended)
+#### Option A — One-Click Launcher (Recommended)
 Windows Users
 
 Double-click:
@@ -130,7 +130,7 @@ Run TasteBuddy:
 
 This does the same: Starts backend, Starts frontend & Opens the browser
 
-Option B — Run Manually
+#### Option B — Run Manually
 
 If you prefer to run backend + frontend yourself:
 
@@ -169,7 +169,7 @@ Model responds when tagged:
 @tastebuddy Find sushi in Midtown for someone gluten-free
 
 
-Troubleshooting Guide
+### Troubleshooting Guide
 1. "uvicorn not recognized"
 
 Your virtual environment is not active.
