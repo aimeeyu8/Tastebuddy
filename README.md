@@ -9,33 +9,26 @@ TasteBuddy is a Large Language Model (LLM)-powered restaurant assistant that aim
 
 - **Allergen and Dietary Safety**: TasteBuddy includes a custom safety layer that analyzes each user’s allergies and dietary restrictions, then removes risky restaurants before the LLM generates recommendations.
 
-
-- **Interactive Feedback Loop**  
-
-
 ---
 
 ## Methodology
 
 1. **Data Collection** 
 For every user request, TasteBuddy pulls live restaurant data directly from the Yelp Fusion API. Instead of storing a fixed dataset, the backend sends a real-time query based on the user's preferences on cuisine, location, and price. The API returns information  
-2. **User Input Collection** 
-3. **Preference Extraction** 
-4. **LLM Reasoning and Ranking** 
-5. **Allergen Filtering**
-In our allergen filterings, we have two safety layers to support this function. 
-    1. Rule-Based Filtering (the first safety layer): TasteBuddy looks at each restaurant’s Yelp categories and checks them against the user’s allergies or diet rules.
-    Instead of guessing based on cuisine (like “Thai = peanuts”), it focuses on real keywords in the restaurant’s categories, such as “seafood,” “shellfish,” “peanut,” “cream,” “barbecue,” etc.
-    If a restaurant clearly mentions something the user can’t have, we remove it immediately. This same rule system also handles diets like no-pork, halal, vegetarian, and vegan.
-
-    2. LLM Safety Check (the second safety layer):
-    After rule filtering, the remaining restaurants go through a lightweight LLM check. The model only sees the restaurant categories + the user’s allergens/diet, and decides if its recommendation is risky. The LLM acts as a final “human-like reasoning” step that catches edge cases the rule-based filter might miss.
-
-Together, these two layers make sure the final recommendations feel inclusive, safe, and personalized, without being overly strict or accidentally blocking good restaurants.
-
-6. **Conflict Resolution**  
-7. **Feedback Loop**
-
+2. **User Input Collection**
+Users interact with TasteBuddy through a shared chat interface. Messages are stored with user identity so the system can track preferences across multiple users.
+3. **Preference Extraction**
+An LLM extracts structured preferences such as cuisine, price, allergies, diet, and location from natural-language input. Rule-based normalization is then applied to ensure consistency across users.
+4. **Harmony Score**
+The harmony score summarizes how compatible users are by combining price, cuisine, and allergy preferences, and it triggers conflict handling when users disagree too much.
+5. **Allergen and Diet Filtering**
+Restaurant menus and review text are analyzed to estimate allergen risk. Restaurants with a high percentage of allergen-containing items are filtered out for safety.
+6. **LLM Reasoning and Ranking**
+After filtering, restaurants are scored using a weighted ranking system based on safety, price match, cuisine relevance, ratings, and reviews. The LLM explains the ranked results in a natural and conversational way.
+7. **Conflict Resolution**
+When multiple users have conflicting preferences, the system computes a harmony score. If compatibility is low, TasteBuddy switches to conflict mode and suggests compromise options.
+8. **Feedback Loop**
+User interactions continuously update stored preferences and group state. This allows the system to adapt recommendations as the conversation evolves.
 ---
 
 ## Tech Stack
