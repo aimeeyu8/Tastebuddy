@@ -33,9 +33,9 @@ User interactions continuously update stored preferences and group state. This a
 
 ## Tech Stack
 
-- **Language Model:** OpenAI GPT  
+- **Language Model:** OpenAI GPT-4o-mini  
 - **Backend:** Python  
-- **APIs:** Yelp API 
+- **APIs:** OPENAI API, SERPAPI Yelp API
 - **Visualization and Reports:** Python  
 - **Data Analysis:** Pandas, Matplotlib  
 - **Frontend:** HTML+CSS
@@ -60,13 +60,13 @@ Add it to your .env file inside backend/:
 
 OPENAI_API_KEY=your_key_here
 
-#### 2. Yelp Fusion API Key
+#### 2. SERPAPI API Key
 
-Create one at: https://www.yelp.com/developers/v3/manage_app
+Create one at: [https://www.yelp.com/developers/v3/manage_app](https://serpapi.com/yelp-search-api)
 
 Add it to backend/.env:
 
-YELP_API_KEY=your_key_here
+SERPAPI_API_KEY=your_key_here
 
 ### 2. Installation Instructions
 Windows Setup
@@ -200,7 +200,7 @@ Then visit:http://localhost:5500
 
 4. Allergen filter takes too long
 
-This happens when SERPAPI’s Yelp Places API is slow or rate-limited.
+This happens when SERPAPI’s Yelp Places API is slow.
 Future improvements include:
 
 Caching results
